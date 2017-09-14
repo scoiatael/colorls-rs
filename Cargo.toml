@@ -1,0 +1,8 @@
+[package]
+name = "colorls"
+version = "0.1.0"
+authors = ["lukasz.czaplinski <czapl.luk+git@gmail.com>"]
+
+[dependencies]
+clap = "2.19"
+termion = "1"
