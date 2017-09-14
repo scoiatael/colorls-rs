@@ -6,3 +6,6 @@ authors = ["lukasz.czaplinski <czapl.luk+git@gmail.com>"]
 [dependencies]
 clap = "2.19"
 termion = "1"
+serde = "0.9"
+serde_derive = "0.9"
+serde_yaml = "0.6"
