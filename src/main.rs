@@ -4,8 +4,6 @@ use clap::{Arg, App};
 extern crate termion;
 use termion::color;
 
-#[macro_use]
-extern crate serde_derive;
 extern crate serde_yaml;
 extern crate serde;
 use serde::de::{self, Visitor, Deserialize, Deserializer};
@@ -238,15 +236,18 @@ fn run(action : Action) {
 }
 
 fn main() {
-     let matches = App::new("ColorLs")
-                          .version("0.1.0")
-                        .author("scoiatael <czapl.luk+git@gmail.com>")
-                          .about("list directory contents")
-                          .arg(Arg::with_name("v")
-                               .short("v")
-                               .multiple(true)
-                               .help("Sets the level of verbosity"))
-                          .get_matches();
+    let matches = App::new("ColorLs")
+        .version("0.1.0")
+        .author("scoiatael <czapl.luk+git@gmail.com>")
+        .about("List information about the FILEs (the current directory by default).")
+        .arg(Arg::with_name("v")
+             .short("v")
+             .multiple(true)
+             .help("Sets the level of verbosity"))
+        .arg(Arg::with_name("FILE")
+             .required(false)
+             .index(1))
+        .get_matches();
 
     let mut verbosity = Verbosity::Quiet;
     match matches.occurrences_of("v") {
@@ -261,10 +262,12 @@ fn main() {
     let file_aliases = serde_yaml::from_str(include_str!("default_config/file_aliases.yaml")).unwrap();
     let folder_aliases = serde_yaml::from_str(include_str!("default_config/folder_aliases.yaml")).unwrap();
     let colors = serde_yaml::from_str(include_str!("default_config/dark_colors.yaml")).unwrap();
-    let cdir = env::current_dir().unwrap();
+    let cdir_path = env::current_dir().unwrap();
+    let dir = matches.value_of("FILE").unwrap_or_else(|| cdir_path.to_str().unwrap());
+    let path = path::PathBuf::from(dir);
     let action = Action {
         verbosity: verbosity,
-        directory: cdir,
+        directory: path,
         config: Config {
             files: file_icons,
             file_aliases: file_aliases,
