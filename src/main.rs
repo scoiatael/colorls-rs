@@ -360,18 +360,16 @@ fn main() {
              .index(1))
         .get_matches();
 
-    let mut verbosity = Verbosity::Quiet;
-    match matches.occurrences_of("v") {
-        0 => (),
-        1 => verbosity = Verbosity::Warn,
-        2 => verbosity = Verbosity::Debug,
-        3 | _ => println!("Can't be more verbose!"),
-    }
-    let mut printer : Box<LsPrinter> = Box::new(ShortFormat{});
-    match matches.occurrences_of("long") {
-        1 => printer = Box::new(LongFormat{}),
-        _ => (),
-    }
+    let verbosity = match matches.occurrences_of("v") {
+        0 => Verbosity::Quiet,
+        1 => Verbosity::Warn,
+        2 | _ =>  Verbosity::Debug,
+    };
+
+    let printer : Box<LsPrinter> = match matches.occurrences_of("long") {
+        0 => Box::new(ShortFormat{}),
+        1 | _ =>  Box::new(LongFormat{}),
+    };
 
     let file_icons = serde_yaml::from_str(include_str!("default_config/files.yaml")).unwrap();
     let folder_icons = serde_yaml::from_str(include_str!("default_config/folders.yaml")).unwrap();
