@@ -115,7 +115,7 @@ impl Visitor for RealColorVisitor {
     type Value = RealColor;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("one of yellow, green, blue, red, cyan, magenta, grey, white")
+        formatter.write_str("one of yellow, green, blue, red, cyan, magenta, grey, white, black")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<RealColor, E>
@@ -130,6 +130,7 @@ impl Visitor for RealColorVisitor {
             "magenta" => Ok(RealColor::Magenta),
             "grey" => Ok(RealColor::Grey),
             "white" => Ok(RealColor::White),
+            "black" => Ok(RealColor::Black),
             _ => Err(E::custom(format!("Unknown RealColor: {}", value)))
         }
     }
