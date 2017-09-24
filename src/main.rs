@@ -306,7 +306,7 @@ impl LsPrinter for ShortFormat {
         let mut width = 0;
         for l in &ls {
             let s = short_format(config, l);
-            let cwidth = s.graphemes(false).count() as usize;
+            let cwidth = s.graphemes(true).count() as usize;
             if cwidth > width {
                 width = cwidth;
             }
