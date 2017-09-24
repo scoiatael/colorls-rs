@@ -3,10 +3,14 @@ use clap::{Arg, App};
 
 extern crate termion;
 use termion::color;
+use termion::terminal_size;
 
 extern crate serde_yaml;
 extern crate serde;
 use serde::de::{self, Visitor, Deserialize, Deserializer};
+
+extern crate unicode_segmentation;
+use unicode_segmentation::UnicodeSegmentation;
 
 use std::path;
 use std::env;
@@ -14,6 +18,7 @@ use std::fs;
 use std::fmt;
 use std::ffi;
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -152,6 +157,7 @@ struct Action {
     printer: Box<LsPrinter>,
 }
 
+#[derive(PartialEq, Eq)]
 struct Attr {
     icon: String,
     color: ColorType,
@@ -220,9 +226,28 @@ fn color_for(config : &Config, color : &ColorType) -> ColorWrapper {
     ColorWrapper(boxed)
 }
 
+#[derive(Eq)]
 struct LsEntry {
     path: path::PathBuf,
     attr: Attr,
+}
+
+impl Ord for LsEntry {
+    fn cmp(&self, other: &LsEntry) -> Ordering {
+        self.path.cmp(&other.path)
+    }
+}
+
+impl PartialOrd for LsEntry {
+    fn partial_cmp(&self, other: &LsEntry) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for LsEntry {
+    fn eq(&self, other: &LsEntry) -> bool {
+        self.path == other.path
+    }
 }
 
 type LsEntries = Vec<LsEntry>;
@@ -259,18 +284,44 @@ impl LsPrinter for LongFormat {
     }
 }
 
+fn short_name(l : &LsEntry) -> String {
+    l.path.file_name().unwrap().to_str().unwrap().to_string()
+}
+
+fn short_format(config : &Config, l : &LsEntry) -> String {
+    let name = short_name(l);
+    format!("{icon}{color}{name}{reset}",
+                      name = name,
+                      icon = l.attr.icon,
+                      color = color::Fg(color_for(config, &l.attr.color)),
+                      reset = color::Fg(color::Reset),
+    )
+}
+
 #[derive(Debug)]
 struct ShortFormat {}
 impl LsPrinter for ShortFormat {
-    fn print(&self, config : &Config, ls : Vec<LsEntry>) {
+    fn print(&self, config : &Config, mut ls : Vec<LsEntry>) {
+        ls.sort_unstable();
+        let mut width = 0;
         for l in &ls {
-            let name = l.path.file_name().unwrap().to_str().unwrap();
-            println!("{icon}  {color}{name}{reset}",
-                     name = name,
-                     icon = l.attr.icon,
-                     color = color::Fg(color_for(config, &l.attr.color)),
-                     reset = color::Fg(color::Reset),
-            )
+            let s = short_format(config, l);
+            let cwidth = s.graphemes(false).count() as usize;
+            if cwidth > width {
+                width = cwidth;
+            }
+        }
+        let size = terminal_size().unwrap().0 as usize;
+        let columns = size / width;
+        for (i, l) in ls.iter().enumerate() {
+            let out = short_format(config, l);
+            print!("{:>width$}", out, width=width);
+            if i % columns == columns - 1 {
+                println!("")
+            }
+        }
+        if ls.len() % columns != columns - 1 {
+            println!("")
         }
     }
 }
