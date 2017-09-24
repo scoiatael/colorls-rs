@@ -203,18 +203,21 @@ fn get_attr(config : &Config, path : &path::Path) -> Attr {
     }
 }
 
-fn color_for(config : &Config, color : &ColorType) -> color::AnsiValue {
-    match config.colors.get(color).unwrap_or(&RealColor::Grey) {
-        &RealColor::Yellow => color::AnsiValue::rgb(0,2,2),
-        &RealColor::Green => color::AnsiValue::rgb(0,2,0),
-        &RealColor::Blue => color::AnsiValue::rgb(0,0,2),
-        &RealColor::Red => color::AnsiValue::rgb(2,0,0),
-        &RealColor::Cyan => color::AnsiValue::rgb(2,2,0),
-        &RealColor::Magenta => color::AnsiValue::rgb(2,0,2),
-        &RealColor::Grey => color::AnsiValue::rgb(2,2,2),
-        &RealColor::White => color::AnsiValue::rgb(0,0,0),
-        &RealColor::Black => color::AnsiValue::rgb(5,5,5),
-    }
+struct ColorWrapper(pub Box<color::Color>);
+
+fn color_for(config : &Config, color : &ColorType) -> ColorWrapper {
+   let boxed : Box<color::Color> = match config.colors.get(color).unwrap_or(&RealColor::Grey) {
+       &RealColor::Yellow => Box::new(color::Yellow),
+        &RealColor::Green => Box::new(color::Green),
+        &RealColor::Blue => Box::new(color::Blue),
+        &RealColor::Red => Box::new(color::Red),
+        &RealColor::Cyan => Box::new(color::Cyan),
+        &RealColor::Magenta => Box::new(color::Magenta),
+        &RealColor::Grey => Box::new(color::AnsiValue::rgb(2,2,2)),
+        &RealColor::White => Box::new(color::AnsiValue::rgb(0,0,0)),
+        &RealColor::Black => Box::new(color::AnsiValue::rgb(5,5,5)),
+   };
+    ColorWrapper(boxed)
 }
 
 struct LsEntry {
@@ -226,6 +229,18 @@ type LsEntries = Vec<LsEntry>;
 
 trait LsPrinter: fmt::Debug {
     fn print(&self, &Config, LsEntries);
+}
+
+impl color::Color for ColorWrapper {
+    #[inline]
+    fn write_fg(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        (*self.0).write_fg(f)
+    }
+
+    #[inline]
+    fn write_bg(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        (*self.0).write_bg(f)
+    }
 }
 
 #[derive(Debug)]
