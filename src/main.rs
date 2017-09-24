@@ -148,6 +148,7 @@ struct Action {
     verbosity: Verbosity,
     directory: path::PathBuf,
     config: Config,
+    printer: Box<LsPrinter>,
 }
 
 struct Attr {
@@ -215,24 +216,63 @@ fn color_for(config : &Config, color : &ColorType) -> color::AnsiValue {
     }
 }
 
+struct LsEntry {
+    path: path::PathBuf,
+    attr: Attr,
+}
+
+type LsEntries = Vec<LsEntry>;
+
+trait LsPrinter: fmt::Debug {
+    fn print(&self, &Config, LsEntries);
+}
+
+#[derive(Debug)]
+struct LongFormat {}
+impl LsPrinter for LongFormat {
+    fn print(&self, config : &Config, ls : Vec<LsEntry>) {
+        for l in &ls {
+            let name = l.path.display();
+            println!("{icon}  {color}{name}{reset}",
+                     name = name,
+                     icon = l.attr.icon,
+                     color = color::Fg(color_for(config, &l.attr.color)),
+                     reset = color::Fg(color::Reset),
+            )
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ShortFormat {}
+impl LsPrinter for ShortFormat {
+    fn print(&self, config : &Config, ls : Vec<LsEntry>) {
+        for l in &ls {
+            let name = l.path.file_name().unwrap().to_str().unwrap();
+            println!("{icon}  {color}{name}{reset}",
+                     name = name,
+                     icon = l.attr.icon,
+                     color = color::Fg(color_for(config, &l.attr.color)),
+                     reset = color::Fg(color::Reset),
+            )
+        }
+    }
+}
+
 fn run(action : Action) {
     if action.verbosity != Verbosity::Quiet {
         println!("Looking at {}", action.directory.display());
 
     }
     let dirs = fs::read_dir(action.directory).unwrap();
+    let mut ls = Vec::new();
 
     for dir in dirs {
         let path = dir.unwrap().path();
         let attr = get_attr(&action.config, &path);
-        let name = path.display();
-        println!("{icon}  {color}{name}{reset}",
-                 name = name,
-                 icon = attr.icon,
-                 color = color::Fg(color_for(&action.config, &attr.color)),
-                 reset = color::Fg(color::Reset),
-        )
+        ls.push(LsEntry { path : path, attr : attr});
     }
+    action.printer.print(&action.config, ls)
 }
 
 fn main() {
@@ -240,6 +280,10 @@ fn main() {
         .version("0.1.0")
         .author("scoiatael <czapl.luk+git@gmail.com>")
         .about("List information about the FILEs (the current directory by default).")
+        .arg(Arg::with_name("long")
+             .long("long")
+             .short("l")
+             .help("Prints using long format"))
         .arg(Arg::with_name("v")
              .short("v")
              .multiple(true)
@@ -255,6 +299,11 @@ fn main() {
         1 => verbosity = Verbosity::Warn,
         2 => verbosity = Verbosity::Debug,
         3 | _ => println!("Can't be more verbose!"),
+    }
+    let mut printer : Box<LsPrinter> = Box::new(ShortFormat{});
+    match matches.occurrences_of("long") {
+        1 => printer = Box::new(LongFormat{}),
+        _ => (),
     }
 
     let file_icons = serde_yaml::from_str(include_str!("default_config/files.yaml")).unwrap();
@@ -275,6 +324,7 @@ fn main() {
             folder_aliases: folder_aliases,
             colors: colors,
         },
+        printer: printer,
     };
 
     if verbosity == Verbosity::Debug {
