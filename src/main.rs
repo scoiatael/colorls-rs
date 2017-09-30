@@ -332,14 +332,12 @@ fn run(action : Action) {
 
     }
     let dirs = fs::read_dir(action.directory).unwrap();
-    let mut ls = Vec::new();
-
-    for dir in dirs {
+    let config = action.config;
+    let ls = dirs.map(|dir|{
         let path = dir.unwrap().path();
-        let attr = get_attr(&action.config, &path);
-        ls.push(LsEntry { path : path, attr : attr});
-    }
-    action.printer.print(&action.config, ls)
+        LsEntry { path: path.clone(), attr: get_attr(&config, &path) }
+    }).collect();
+    action.printer.print(&config, ls)
 }
 
 fn main() {
