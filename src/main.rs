@@ -180,7 +180,7 @@ fn get_file_attr_alias(conf : &Config, suffix : &str) -> Attr {
 fn get_folder_attr(conf : &Config, name : &str) -> Attr {
     match conf.folders.get(name) {
         Some(icon) => Attr { icon: icon.clone(), color: ColorType::Dir },
-        None => Attr { icon: conf.files.get("file").unwrap().clone(), color: ColorType::Dir }
+        None => Attr { icon: conf.folders.get("folder").unwrap().clone(), color: ColorType::Dir }
     }
 }
 
@@ -315,7 +315,7 @@ impl LsPrinter for ShortFormat {
         let columns = size / width;
         for (i, l) in ls.iter().enumerate() {
             let out = short_format(config, l);
-            print!("{:>width$}", out, width=width);
+            print!("{:<width$}", out, width=width);
             if i % columns == columns - 1 {
                 println!("")
             }
@@ -333,7 +333,7 @@ fn run(action : Action) {
     }
     let dirs = fs::read_dir(action.directory).unwrap();
     let config = action.config;
-    let ls = dirs.map(|dir|{
+    let ls = dirs.map(|dir| {
         let path = dir.unwrap().path();
         LsEntry { path: path.clone(), attr: get_attr(&config, &path) }
     }).collect();
