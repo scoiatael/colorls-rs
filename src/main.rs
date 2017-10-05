@@ -37,6 +37,7 @@ struct Config {
     folders: Options,
     folder_aliases: Options,
     colors: HashMap<ColorType, RealColor>,
+    max_width: usize,
 }
 
 #[derive(Hash, Debug, PartialEq, Eq, Clone, Copy)]
@@ -252,10 +253,6 @@ impl PartialEq for LsEntry {
 
 type LsEntries = Vec<LsEntry>;
 
-trait LsPrinter: fmt::Debug {
-    fn print(&self, &Config, LsEntries);
-}
-
 impl color::Color for ColorWrapper {
     #[inline]
     fn write_fg(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -266,6 +263,10 @@ impl color::Color for ColorWrapper {
     fn write_bg(&self, f: &mut fmt::Formatter) -> fmt::Result {
         (*self.0).write_bg(f)
     }
+}
+
+trait LsPrinter: fmt::Debug {
+    fn print(&self, &Config, LsEntries);
 }
 
 #[derive(Debug)]
@@ -298,29 +299,50 @@ fn short_format(config : &Config, l : &LsEntry) -> String {
     )
 }
 
+trait LsFormatter: fmt::Debug {
+    fn format(&self, &Config, Vec<String>) -> Vec<Vec<String>>;
+}
+
+fn strlen(s : &String) -> usize {
+    s.graphemes(true).count() as usize
+}
+
+#[derive(Debug)]
+struct NaiveFormatter {}
+impl LsFormatter for NaiveFormatter {
+    fn format(&self, config : &Config, names : Vec<String>) -> Vec<Vec<String>> {
+        let mut width = 0;
+        for l in &names {
+            let cwidth = strlen(l);
+            if cwidth > width {
+                width = cwidth;
+            }
+        }
+        let columns = config.max_width / (width + 1);
+        let mut rows = Vec::new();
+        let mut row = Vec::new();
+        for (i, out) in names.iter().enumerate() {
+            row.push(format!("{:<width$}", out, width=width));
+            if i % columns == columns - 1 {
+                rows.push(row);
+                row = Vec::new();
+            }
+        }
+        rows
+    }
+}
+
 #[derive(Debug)]
 struct ShortFormat {}
 impl LsPrinter for ShortFormat {
     fn print(&self, config : &Config, mut ls : Vec<LsEntry>) {
         ls.sort_unstable();
-        let mut width = 0;
-        for l in &ls {
-            let s = short_format(config, l);
-            let cwidth = s.graphemes(true).count() as usize;
-            if cwidth > width {
-                width = cwidth;
+        let rows = NaiveFormatter{}.format(config,
+                                           ls.iter().map(|e| short_format(config, e)).collect());
+        for row in rows {
+            for item in row {
+                print!("{}", item);
             }
-        }
-        let size = terminal_size().unwrap().0 as usize;
-        let columns = size / width;
-        for (i, l) in ls.iter().enumerate() {
-            let out = short_format(config, l);
-            print!("{:<width$}", out, width=width);
-            if i % columns == columns - 1 {
-                println!("")
-            }
-        }
-        if ls.len() % columns != columns - 1 {
             println!("")
         }
     }
@@ -386,6 +408,7 @@ fn main() {
             folders: folder_icons,
             folder_aliases: folder_aliases,
             colors: colors,
+            max_width: terminal_size().unwrap().0 as usize,
         },
         printer: printer,
     };
