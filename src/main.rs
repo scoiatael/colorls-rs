@@ -18,8 +18,12 @@ use std::fs;
 use std::fmt;
 use std::ffi;
 
+use std::cmp::max;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+
+extern crate num_iter;
+use num_iter::range_step;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum Verbosity {
@@ -38,6 +42,7 @@ struct Config {
     folder_aliases: Options,
     colors: HashMap<ColorType, RealColor>,
     max_width: usize,
+    printer: Box<EntryPrinter>,
 }
 
 #[derive(Hash, Debug, PartialEq, Eq, Clone, Copy)]
@@ -155,10 +160,10 @@ struct Action {
     verbosity: Verbosity,
     directory: path::PathBuf,
     config: Config,
-    printer: Box<LsPrinter>,
+    formatter: Box<Formatter>,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 struct Attr {
     icon: String,
     color: ColorType,
@@ -227,31 +232,29 @@ fn color_for(config : &Config, color : &ColorType) -> ColorWrapper {
     ColorWrapper(boxed)
 }
 
-#[derive(Eq)]
-struct LsEntry {
+#[derive(Eq, Clone)]
+struct Entry {
     path: path::PathBuf,
     attr: Attr,
 }
 
-impl Ord for LsEntry {
-    fn cmp(&self, other: &LsEntry) -> Ordering {
+impl Ord for Entry {
+    fn cmp(&self, other: &Entry) -> Ordering {
         self.path.cmp(&other.path)
     }
 }
 
-impl PartialOrd for LsEntry {
-    fn partial_cmp(&self, other: &LsEntry) -> Option<Ordering> {
+impl PartialOrd for Entry {
+    fn partial_cmp(&self, other: &Entry) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for LsEntry {
-    fn eq(&self, other: &LsEntry) -> bool {
+impl PartialEq for Entry {
+    fn eq(&self, other: &Entry) -> bool {
         self.path == other.path
     }
 }
-
-type LsEntries = Vec<LsEntry>;
 
 impl color::Color for ColorWrapper {
     #[inline]
@@ -265,86 +268,196 @@ impl color::Color for ColorWrapper {
     }
 }
 
-trait LsPrinter: fmt::Debug {
-    fn print(&self, &Config, LsEntries);
+struct EntryPrinterConfig {
+    width : usize,
+}
+
+trait EntryPrinter: fmt::Debug {
+    fn format(&self, &Config, &EntryPrinterConfig, &Entry) -> String;
+    fn predict(&self, &Entry) -> usize;
 }
 
 #[derive(Debug)]
 struct LongFormat {}
-impl LsPrinter for LongFormat {
-    fn print(&self, config : &Config, ls : Vec<LsEntry>) {
-        for l in &ls {
-            let name = l.path.display();
-            println!("{icon}  {color}{name}{reset}",
+impl EntryPrinter for LongFormat {
+    fn format(&self, config : &Config, ep_config : &EntryPrinterConfig, entry : &Entry) -> String {
+            let name = entry.path.display();
+            let width = ep_config.width - 2;
+            format!("{icon} {color}{name:<width$}{reset}",
                      name = name,
-                     icon = l.attr.icon,
-                     color = color::Fg(color_for(config, &l.attr.color)),
+                     icon = entry.attr.icon,
+                     color = color::Fg(color_for(config, &entry.attr.color)),
                      reset = color::Fg(color::Reset),
+                     width = width,
             )
-        }
+    }
+
+    fn predict(&self, entry : &Entry) -> usize {
+        strlen(&format!("{}", entry.path.display())) + 2 // Icon + space
     }
 }
 
-fn short_name(l : &LsEntry) -> String {
+#[derive(Debug)]
+struct ShortFormat {}
+
+fn short_name(l : &Entry) -> String {
     l.path.file_name().unwrap().to_str().unwrap().to_string()
 }
 
-fn short_format(config : &Config, l : &LsEntry) -> String {
-    let name = short_name(l);
-    format!("{icon}{color}{name}{reset}",
-                      name = name,
-                      icon = l.attr.icon,
-                      color = color::Fg(color_for(config, &l.attr.color)),
-                      reset = color::Fg(color::Reset),
-    )
-}
+impl EntryPrinter for ShortFormat {
+    fn format(&self, config : &Config, ep_config : &EntryPrinterConfig, entry : &Entry) -> String {
+        let name = short_name(entry);
+        let width = ep_config.width - 2;
+        format!("{icon}{color}{name:<width$}{reset}",
+                name = name,
+                icon = entry.attr.icon,
+                color = color::Fg(color_for(config, &entry.attr.color)),
+                reset = color::Fg(color::Reset),
+                width = width,
+        )
+    }
 
-trait LsFormatter: fmt::Debug {
-    fn format(&self, &Config, Vec<String>) -> Vec<Vec<String>>;
+    fn predict(&self, entry : &Entry) -> usize {
+        strlen(&short_name(entry)) + 3
+    }
 }
 
 fn strlen(s : &String) -> usize {
     s.graphemes(true).count() as usize
 }
 
+#[cfg(test)]
+mod strlen_tests {
+    use super::*;
+    #[test]
+    fn for_normal_string() {
+        assert_eq!(6, strlen(&".local".to_string()))
+    }
+
+    #[test]
+    fn for_string_with_icons() {
+        assert_eq!(7, strlen(&".local".to_string()))
+    }
+
+    #[test]
+    fn for_string_with_weird_stuff() {
+        assert_eq!(7, strlen(&"a̐.local".to_string()))
+    }
+
+    #[test]
+    fn for_string_with_icons_via_code() {
+        assert_eq!(7, strlen(&format!("{}.local", "\u{f115}")))
+    }
+
+    // NOTE: Nope. Not gonna work.
+    // #[test]
+    // fn for_string_with_color() {
+    //     assert_eq!(6, strlen(&format!("{color}.local{reset}", color = color::Fg(color::Red), reset = color::Fg(color::Reset))))
+    // }
+}
+
+type Output = Vec<Vec<String>>;
+
+trait Formatter: fmt::Debug {
+    fn format(&self, &Config, Vec<Entry>) -> Output;
+}
+
+fn as_rows<T : Clone>(names : &Vec<T>, row_cap : usize) -> Vec<Vec<T>> {
+    let mut rows = Vec::with_capacity(names.len() / row_cap + 1);
+    let mut row = Vec::with_capacity(row_cap);
+    for (i, out) in names.iter().enumerate() {
+        row.push(out.clone());
+        if i % row_cap == row_cap - 1 {
+            rows.push(row);
+            row = Vec::new();
+        }
+    }
+    rows
+}
+
+// NOTE: Assumes out has same-sized rows
+fn is_valid(out : Vec<Vec<usize>>, max_width : usize) -> bool {
+    let mut col_widths = vec![0; out[0].len()];
+    for r in out {
+        for (i, s) in r.iter().enumerate() {
+            col_widths[i] = max(col_widths[i], *s);
+        }
+    }
+    let mut width = 0;
+    for c in col_widths { width += c }
+    return width < max_width
+}
+
+#[cfg(test)]
+mod is_valid_tests {
+    use super::*;
+    #[test]
+    fn small_case() {
+        assert_eq!(false, is_valid(vec![vec![1,2], vec![2,1]], 2))
+    }
+}
+
+fn is_valid_as_rows(config: &Config, names : &Vec<Entry>, row_cap : usize) -> bool {
+    is_valid(as_rows(&names.iter().map(|e| config.printer.predict(e)).collect(), row_cap), config.max_width)
+}
+
+fn format_as_rows(config : &Config, names : &Vec<Entry>, row_cap : usize) -> Output {
+    let rows = as_rows(names, row_cap);
+    let mut col_widths = vec![0; rows[0].len()];
+    for r in &rows {
+        for (i, s) in r.iter().enumerate() {
+            let predicted = config.printer.predict(s);
+            if predicted > col_widths[i] {
+                col_widths[i] = predicted
+            }
+        }
+    }
+    let ep_configs : Vec<EntryPrinterConfig> = col_widths.iter().map(|width| EntryPrinterConfig{width: *width}).collect();
+    let mut out = Vec::with_capacity(names.len());
+    for r in rows {
+        for (i, s) in r.iter().enumerate() {
+            out.push(config.printer.format(config, &ep_configs[i], s));
+        }
+    }
+    as_rows(&out, row_cap)
+}
+
+fn max_width(config : &Config, names : &Vec<Entry>) -> usize {
+    let mut width = 0;
+    for l in names {
+        let cwidth = config.printer.predict(l);
+        if cwidth > width {
+            width = cwidth;
+        }
+    }
+    width
+}
+
+const MIN_FORMAT_ENTRY_LENGTH : usize = 5;
+
 #[derive(Debug)]
-struct NaiveFormatter {}
-impl LsFormatter for NaiveFormatter {
-    fn format(&self, config : &Config, names : Vec<String>) -> Vec<Vec<String>> {
-        let mut width = 0;
-        for l in &names {
-            let cwidth = strlen(l);
-            if cwidth > width {
-                width = cwidth;
+struct PlanningFormatter {}
+impl Formatter for PlanningFormatter {
+    fn format(&self, config : &Config, names : Vec<Entry>) -> Output {
+        let width = max_width(config, &names);
+        let min_rows = (config.max_width / (width + 1)) as i64;
+        let max_rows = (config.max_width / MIN_FORMAT_ENTRY_LENGTH) as i64;
+        for row_cap in range_step(max_rows, min_rows, -1) {
+            if is_valid_as_rows(config, &names, row_cap as usize) {
+                return format_as_rows(config, &names, row_cap as usize)
             }
         }
-        let columns = config.max_width / (width + 1);
-        let mut rows = Vec::new();
-        let mut row = Vec::new();
-        for (i, out) in names.iter().enumerate() {
-            row.push(format!("{:<width$}", out, width=width));
-            if i % columns == columns - 1 {
-                rows.push(row);
-                row = Vec::new();
-            }
-        }
-        rows
+        format_as_rows(config, &names, min_rows as usize)
     }
 }
 
 #[derive(Debug)]
-struct ShortFormat {}
-impl LsPrinter for ShortFormat {
-    fn print(&self, config : &Config, mut ls : Vec<LsEntry>) {
-        ls.sort_unstable();
-        let rows = NaiveFormatter{}.format(config,
-                                           ls.iter().map(|e| short_format(config, e)).collect());
-        for row in rows {
-            for item in row {
-                print!("{}", item);
-            }
-            println!("")
-        }
+struct NaiveFormatter {}
+impl Formatter for NaiveFormatter {
+    fn format(&self, config : &Config, names : Vec<Entry>) -> Output {
+        let width = max_width(config, &names) + 2;
+        let rows = config.max_width / width;
+        format_as_rows(config, &names, rows)
     }
 }
 
@@ -357,9 +470,15 @@ fn run(action : Action) {
     let config = action.config;
     let ls = dirs.map(|dir| {
         let path = dir.unwrap().path();
-        LsEntry { path: path.clone(), attr: get_attr(&config, &path) }
+        Entry { path: path.clone(), attr: get_attr(&config, &path) }
     }).collect();
-    action.printer.print(&config, ls)
+    let rows = action.formatter.format(&config, ls);
+    for items in rows {
+        for item in items {
+            print!("{}", item);
+        }
+        println!("");
+    }
 }
 
 fn main() {
@@ -371,6 +490,10 @@ fn main() {
              .long("long")
              .short("l")
              .help("Prints using long format"))
+        .arg(Arg::with_name("naive")
+             .long("naive")
+             .short("n")
+             .help("Prints using naive formatter"))
         .arg(Arg::with_name("v")
              .short("v")
              .multiple(true)
@@ -385,8 +508,11 @@ fn main() {
         1 => Verbosity::Warn,
         2 | _ =>  Verbosity::Debug,
     };
-
-    let printer : Box<LsPrinter> = match matches.occurrences_of("long") {
+    let formatter : Box<Formatter> = match matches.occurrences_of("naive") {
+        0 => Box::new(PlanningFormatter{}),
+        1 | _ => Box::new(NaiveFormatter{}),
+    };
+    let printer : Box<EntryPrinter> = match matches.occurrences_of("long") {
         0 => Box::new(ShortFormat{}),
         1 | _ =>  Box::new(LongFormat{}),
     };
@@ -409,8 +535,9 @@ fn main() {
             folder_aliases: folder_aliases,
             colors: colors,
             max_width: terminal_size().unwrap().0 as usize,
+            printer: printer,
         },
-        printer: printer,
+        formatter: formatter,
     };
 
     if verbosity == Verbosity::Debug {
