@@ -477,10 +477,11 @@ fn run(action : Action) {
     }
     let dirs = fs::read_dir(action.directory).unwrap();
     let config = action.config;
-    let ls = dirs.map(|dir| {
+    let mut ls : Vec<Entry> = dirs.map(|dir| {
         let path = dir.unwrap().path();
         Entry { path: path.clone(), attr: get_attr(&config, &path) }
     }).collect();
+    ls.sort_unstable();
     let rows = action.formatter.format(&config, ls);
     for items in rows {
         for item in items {
