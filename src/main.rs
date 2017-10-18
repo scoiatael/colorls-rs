@@ -24,7 +24,7 @@ fn main() {
         .arg(Arg::with_name("naive")
              .long("naive")
              .short("n")
-             .help("Prints using naive formatter"))
+             .help("Prints using naive tabulator"))
         .arg(Arg::with_name("v")
              .short("v")
              .multiple(true)
@@ -39,11 +39,11 @@ fn main() {
         1 => Verbosity::Warn,
         2 | _ =>  Verbosity::Debug,
     };
-    let formatter : Box<Formatter> = match matches.occurrences_of("naive") {
-        0 => Box::new(PlanningFormatter{}),
-        1 | _ => Box::new(NaiveFormatter{}),
+    let tabulator : Box<Tabulator> = match matches.occurrences_of("naive") {
+        0 => Box::new(PlanningTabulator{}),
+        1 | _ => Box::new(NaiveTabulator{}),
     };
-    let printer : Box<EntryPrinter> = match matches.occurrences_of("long") {
+    let formatter : Box<Formatter> = match matches.occurrences_of("long") {
         0 => Box::new(ShortFormat{}),
         1 | _ =>  Box::new(LongFormat{}),
     };
@@ -56,19 +56,23 @@ fn main() {
     let cdir_path = env::current_dir().unwrap();
     let dir = matches.value_of("FILE").unwrap_or_else(|| cdir_path.to_str().unwrap());
     let path = path::PathBuf::from(dir);
+    let width = terminal_size().unwrap().0 as usize;
     let action = Action {
         verbosity: verbosity,
         directory: path,
         config: Config {
-            files: file_icons,
-            file_aliases: file_aliases,
-            folders: folder_icons,
-            folder_aliases: folder_aliases,
-            colors: colors,
-            max_width: terminal_size().unwrap().0 as usize,
-            printer: printer,
+            max_width: width,
+            formatter,
+            entry: EntryConfig {
+                files: file_icons,
+                folders: folder_icons,
+                file_aliases,
+                colors,
+                folder_aliases,
+                width,
+            }
         },
-        formatter: formatter,
+        tabulator,
     };
 
     if verbosity == Verbosity::Debug {
