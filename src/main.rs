@@ -322,6 +322,7 @@ impl EntryPrinter for ShortFormat {
     }
 }
 
+// NOTE: Colors DO count to length. Sadly.
 fn strlen(s : &String) -> usize {
     s.graphemes(true).count() as usize
 }
@@ -349,11 +350,10 @@ mod strlen_tests {
         assert_eq!(7, strlen(&format!("{}.local", "\u{f115}")))
     }
 
-    // NOTE: Nope. Not gonna work.
-    // #[test]
-    // fn for_string_with_color() {
-    //     assert_eq!(6, strlen(&format!("{color}.local{reset}", color = color::Fg(color::Red), reset = color::Fg(color::Reset))))
-    // }
+    #[test]
+    fn for_string_with_color() {
+        assert_eq!(20, strlen(&format!("{color}.local{reset}", color = color::Fg(color::Red), reset = color::Fg(color::Reset))))
+    }
 }
 
 type Output = Vec<Vec<String>>;
@@ -392,8 +392,18 @@ fn is_valid(out : Vec<Vec<usize>>, max_width : usize) -> bool {
 mod is_valid_tests {
     use super::*;
     #[test]
-    fn small_case() {
+    fn for_simple_case() {
         assert_eq!(false, is_valid(vec![vec![1,2], vec![2,1]], 2))
+    }
+
+    #[test]
+    fn when_total_col_width_exceeds_max() {
+        assert_eq!(false, is_valid(vec![vec![1,3], vec![3,1]], 3))
+    }
+
+    #[test]
+    fn when_fits() {
+        assert_eq!(true, is_valid(vec![vec![1,2], vec![1,1]], 4))
     }
 }
 
@@ -401,15 +411,14 @@ fn is_valid_as_rows(config: &Config, names : &Vec<Entry>, row_cap : usize) -> bo
     is_valid(as_rows(&names.iter().map(|e| config.printer.predict(e)).collect(), row_cap), config.max_width)
 }
 
+// NOTE: Assumes names has same-sized rows
 fn format_as_rows(config : &Config, names : &Vec<Entry>, row_cap : usize) -> Output {
     let rows = as_rows(names, row_cap);
     let mut col_widths = vec![0; rows[0].len()];
     for r in &rows {
         for (i, s) in r.iter().enumerate() {
             let predicted = config.printer.predict(s);
-            if predicted > col_widths[i] {
-                col_widths[i] = predicted
-            }
+            col_widths[i] = max(col_widths[i],predicted)
         }
     }
     let ep_configs : Vec<EntryPrinterConfig> = col_widths.iter().map(|width| EntryPrinterConfig{width: *width}).collect();
