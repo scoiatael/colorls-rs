@@ -40,12 +40,12 @@ fn main() {
         2 | _ =>  Verbosity::Debug,
     };
     let tabulator : Box<Tabulator> = match matches.occurrences_of("naive") {
-        0 => Box::new(PlanningTabulator{}),
-        1 | _ => Box::new(NaiveTabulator{}),
+        0 => Box::new(PlanningTabulator),
+        1 | _ => Box::new(NaiveTabulator),
     };
     let formatter : Box<Formatter> = match matches.occurrences_of("long") {
-        0 => Box::new(ShortFormat{}),
-        1 | _ =>  Box::new(LongFormat{}),
+        0 => Box::new(ShortFormat),
+        1 | _ =>  Box::new(LongFormat),
     };
 
     let file_icons = serde_yaml::from_str(include_str!("default_config/files.yaml")).unwrap();

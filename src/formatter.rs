@@ -119,7 +119,7 @@ pub trait Formatter: fmt::Debug {
 }
 
 #[derive(Debug)]
-pub struct LongFormat {}
+pub struct LongFormat;
 impl Formatter for LongFormat {
     fn format(&self, config :  &EntryConfig, entry : &Entry) -> String {
         let name = entry.path.display();
@@ -139,7 +139,7 @@ impl Formatter for LongFormat {
 }
 
 #[derive(Debug)]
-pub struct ShortFormat {}
+pub struct ShortFormat;
 
 fn short_name(l : &Entry) -> String {
     l.path.file_name().unwrap().to_str().unwrap().to_string()

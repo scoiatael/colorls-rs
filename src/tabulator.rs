@@ -101,7 +101,7 @@ fn max_width(config : &Config, names : &Vec<Entry>) -> usize {
 const MIN_FORMAT_ENTRY_LENGTH : usize = 5;
 
 #[derive(Debug)]
-pub struct PlanningTabulator {}
+pub struct PlanningTabulator;
 impl Tabulator for PlanningTabulator {
     fn tabulate(&self, config : &Config, names : Vec<Entry>) -> Output {
         let width = max_width(config, &names);
@@ -117,7 +117,7 @@ impl Tabulator for PlanningTabulator {
 }
 
 #[derive(Debug)]
-pub struct NaiveTabulator {}
+pub struct NaiveTabulator;
 impl Tabulator for NaiveTabulator {
     fn tabulate(&self, config : &Config, names : Vec<Entry>) -> Output {
         let width = max_width(config, &names) + 2;
