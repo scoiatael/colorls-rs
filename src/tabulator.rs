@@ -122,25 +122,25 @@ fn binsearch<F>(range : &Vec<i64>, pred : F) -> Option<usize>
     let mut index = 0;
     let mut counter = range.len();
     loop {
+        if slice.is_empty() {
+            return None
+        }
         counter -= 1;
         assert!(counter > 0);
-        if let Some(_) = slice.first() {
-            let mid = slice.len() / 2;
-            let mid_value = slice[mid];
-            if pred(mid_value) {
-                // Go left
-                slice = &slice[0..mid+1]
-            } else {
-                // Go right
-                index += mid;
-                slice = &slice[mid..]
-            }
-            if slice.len() < 3 {
-                if pred(slice[0]) { return Some(index) }
-                if slice.len() == 2 && pred(slice[1]) { return Some(index+1) }
-                return None
-            }
+
+        let mid = slice.len() / 2;
+        let mid_value = slice[mid];
+        if pred(mid_value) {
+            // Go left
+            slice = &slice[0..mid+1]
         } else {
+            // Go right
+            index += mid;
+            slice = &slice[mid..]
+        }
+        if slice.len() < 3 {
+            if pred(slice[0]) { return Some(index) }
+            if slice.len() == 2 && pred(slice[1]) { return Some(index+1) }
             return None
         }
     }
@@ -168,6 +168,11 @@ mod binsearch_tests {
     #[test]
     fn when_array_is_big() {
         assert_eq!(Some(11), binsearch(&vec![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14], |i| i >= 11));
+    }
+
+    #[test]
+    fn when_array_is_empty() {
+        assert_eq!(None, binsearch(&vec![], |i| i >= 11));
     }
 }
 
