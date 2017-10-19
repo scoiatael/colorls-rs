@@ -134,7 +134,7 @@ impl Formatter for LongFormat {
     }
 
     fn predict(&self, entry : &Entry) -> usize {
-        strlen(&format!("{}", entry.path.display())) + 2 // Icon + space
+        strlen(&format!("{}", entry.path.display())) + 4
     }
 }
 
