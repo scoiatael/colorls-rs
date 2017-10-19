@@ -54,7 +54,7 @@ mod is_valid_tests {
 
     #[test]
     fn when_total_col_width_exceeds_max() {
-        assert_eq!(false, is_valid(vec![vec![1,3], vec![3,1]], 3))
+        assert_eq!(false, is_valid(vec![vec![1,3], vec![3,1]], 5))
     }
 
     #[test]
