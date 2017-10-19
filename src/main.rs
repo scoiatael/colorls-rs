@@ -40,8 +40,9 @@ fn main() {
         2 | _ =>  Verbosity::Debug,
     };
     let tabulator : Box<Tabulator> = match matches.occurrences_of("naive") {
-        0 => Box::new(PlanningTabulator),
-        1 | _ => Box::new(NaiveTabulator),
+        0 => Box::new(BinsearchTabulator),
+        1 => Box::new(PlanningTabulator),
+        _ => Box::new(NaiveTabulator),
     };
     let formatter : Box<Formatter> = match matches.occurrences_of("long") {
         0 => Box::new(ShortFormat),

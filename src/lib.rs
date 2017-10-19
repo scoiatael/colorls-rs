@@ -11,7 +11,7 @@ mod formatter;
 use self::formatter::{Entry,get_attr};
 pub use self::formatter::{Formatter,EntryConfig,ShortFormat,LongFormat};
 mod tabulator;
-pub use self::tabulator::{Tabulator,Config,PlanningTabulator,NaiveTabulator};
+pub use self::tabulator::{Tabulator,Config,PlanningTabulator,NaiveTabulator,BinsearchTabulator};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Verbosity {
