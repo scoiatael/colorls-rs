@@ -28,7 +28,24 @@ fn as_rows<T : Clone>(names : &Vec<T>, row_cap : usize) -> Vec<Vec<T>> {
             row = Vec::new();
         }
     }
+    if !row.is_empty() {
+        rows.push(row);
+    }
     rows
+}
+
+#[cfg(test)]
+mod as_row_tests {
+    use super::*;
+    #[test]
+    fn for_simple_case() {
+        assert_eq!(vec![vec![1,2], vec![2,1]], as_rows(&vec![1,2,2,1], 2))
+    }
+
+    #[test]
+    fn when_only_one_row() {
+        assert_eq!(vec![vec![1,2, 3]], as_rows(&vec![1,2,3], 10))
+    }
 }
 
 type ColumnSetup = Vec<usize>;

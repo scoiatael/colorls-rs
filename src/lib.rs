@@ -39,6 +39,12 @@ pub fn run(action : Action) {
         let path = dir.unwrap().path();
         Entry { path: path.clone(), attr: get_attr(&config.entry, &path) }
     }).collect();
+    if ls.is_empty() {
+        if action.verbosity != Verbosity::Quiet {
+            println!("is empty.");
+        }
+        return
+    }
     ls.sort_unstable();
     let rows = action.tabulator.tabulate(&config, ls);
     for items in rows {

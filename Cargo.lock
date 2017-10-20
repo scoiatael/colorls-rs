@@ -1,6 +1,6 @@
 [root]
 name = "colorls"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap 2.26.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-iter 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",

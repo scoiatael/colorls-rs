@@ -22,7 +22,7 @@ pub struct EntryConfig {
     pub width: usize,
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Attr {
     icon: String,
     color: ColorType,
@@ -89,7 +89,7 @@ fn color_for(config : &EntryConfig, color : &ColorType) -> ColorWrapper {
     ColorWrapper(boxed)
 }
 
-#[derive(Eq, Clone)]
+#[derive(Eq, Clone, Debug)]
 pub struct Entry {
     pub path: path::PathBuf,
     pub attr: Attr,
