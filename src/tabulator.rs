@@ -18,18 +18,11 @@ pub trait Tabulator: fmt::Debug {
     fn tabulate(&self, &Config, Vec<Entry>) -> Output;
 }
 
-fn as_rows<T : Clone>(names : &Vec<T>, row_cap : usize) -> Vec<Vec<T>> {
-    let mut rows = Vec::with_capacity(names.len() / row_cap + 1);
-    let mut row = Vec::with_capacity(row_cap);
+fn as_rows<T : Clone>(names : &Vec<T>, n_cols : usize) -> Vec<Vec<T>> {
+    let n_rows = (names.len() + n_cols - 1) / n_cols;
+    let mut rows = vec![Vec::with_capacity(n_cols); n_rows];
     for (i, out) in names.iter().enumerate() {
-        row.push(out.clone());
-        if i % row_cap == row_cap - 1 {
-            rows.push(row);
-            row = Vec::new();
-        }
-    }
-    if !row.is_empty() {
-        rows.push(row);
+        rows[i / n_cols].push(out.clone());
     }
     rows
 }
