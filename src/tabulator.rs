@@ -37,7 +37,7 @@ mod as_row_tests {
 
     #[test]
     fn when_only_one_row() {
-        assert_eq!(vec![vec![1,2, 3]], as_rows(&vec![1,2,3], 10))
+        assert_eq!(vec![vec![1,2,3]], as_rows(&vec![1,2,3], 10))
     }
 }
 
