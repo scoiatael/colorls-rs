@@ -10,35 +10,61 @@ pub struct Config {
     pub entry: EntryConfig,
     pub max_width: usize,
     pub formatter: Box<Formatter>,
+    pub entry_order : EntryOrder,
 }
 
-type Output = Vec<Vec<String>>;
+type Rows<T> = Vec<Vec<T>>;
 
-pub trait Tabulator: fmt::Debug {
-    fn tabulate(&self, &Config, Vec<Entry>) -> Output;
+#[derive(Hash, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum EntryOrder {
+    Horizontal,
+    Vertical
 }
 
-fn as_rows<T : Clone>(names : &Vec<T>, n_cols : usize) -> Vec<Vec<T>> {
+fn break_lines_with<T : Clone>(order : EntryOrder, names : &Vec<T>, n_cols : usize) -> Rows<T> {
     let n_rows = (names.len() + n_cols - 1) / n_cols;
     let mut rows = vec![Vec::with_capacity(n_cols); n_rows];
     for (i, out) in names.iter().enumerate() {
-        rows[i / n_cols].push(out.clone());
+        let pos = match order {
+            EntryOrder::Horizontal => i / n_cols,
+            EntryOrder::Vertical => i % n_rows,
+        };
+        rows[pos].push(out.clone());
     }
     rows
 }
 
 #[cfg(test)]
-mod as_row_tests {
+mod horizontal_line_breaker_tests {
     use super::*;
     #[test]
     fn for_simple_case() {
-        assert_eq!(vec![vec![1,2], vec![2,1]], as_rows(&vec![1,2,2,1], 2))
+        assert_eq!(vec![vec![1,2], vec![3,4]], break_lines_with(EntryOrder::Horizontal, &vec![1,2,3,4], 2))
     }
 
     #[test]
     fn when_only_one_row() {
-        assert_eq!(vec![vec![1,2,3]], as_rows(&vec![1,2,3], 10))
+        assert_eq!(vec![vec![1,2,3]], break_lines_with(EntryOrder::Horizontal, &vec![1,2,3], 10))
     }
+}
+
+#[cfg(test)]
+mod vertical_line_breaker_tests {
+    use super::*;
+    #[test]
+    fn for_simple_case() {
+        assert_eq!(vec![vec![1,3], vec![2,4]], break_lines_with(EntryOrder::Vertical, &vec![1,2,3,4], 2))
+    }
+
+    #[test]
+    fn when_only_one_row() {
+        assert_eq!(vec![vec![1,2,3]], break_lines_with(EntryOrder::Vertical, &vec![1,2,3], 10))
+    }
+}
+
+type Output = Rows<String>;
+pub trait Tabulator: fmt::Debug {
+    fn tabulate(&self, &Config, Vec<Entry>) -> Output;
 }
 
 type ColumnSetup = Vec<usize>;
@@ -51,6 +77,9 @@ fn is_valid(out : &ColumnSetup, max_width : usize) -> bool {
 
 // NOTE: Assumes out has same-sized rows
 fn column_setup(out : Vec<Vec<usize>>) -> ColumnSetup {
+    if out.is_empty() {
+        return vec![]
+    }
     let mut col_widths = vec![0; out[0].len()];
     for r in out {
         for (i, s) in r.iter().enumerate() {
@@ -80,7 +109,7 @@ mod is_valid_tests {
 }
 
 fn predict_column_setup(config: &Config, names : &Vec<Entry>, n_cols : usize) -> ColumnSetup {
-    column_setup(as_rows(&names.iter().map(|e| config.formatter.predict(e)).collect(), n_cols))
+    column_setup(break_lines_with(config.entry_order, &names.iter().map(|e| config.formatter.predict(e)).collect(), n_cols))
 }
 
 fn is_valid_as_rows(config: &Config, names : &Vec<Entry>, n_cols : usize) -> Option<ColumnSetup> {
@@ -90,18 +119,17 @@ fn is_valid_as_rows(config: &Config, names : &Vec<Entry>, n_cols : usize) -> Opt
     } else { None }
 }
 
-// NOTE: Assumes names has same-sized rows
 fn format_as_rows(config : &Config, names : &Vec<Entry>, col_widths : ColumnSetup) -> Output {
     let n_cols = col_widths.len();
-    let rows = as_rows(names, n_cols);
+    let rows = break_lines_with(config.entry_order, names, n_cols);
     let entry_configs : Vec<EntryConfig> = col_widths.iter().map(|width| EntryConfig{width: *width, ..config.entry.clone()}).collect();
-    let mut out = Vec::with_capacity(names.len());
-    for r in rows {
-        for (i, s) in r.iter().enumerate() {
-            out.push(config.formatter.format(&entry_configs[i], s));
+    let mut out : Output = rows.iter().map(|r| Vec::with_capacity(r.len())).collect();
+    for (y, row) in rows.iter().enumerate() {
+        for (x, item) in row.iter().enumerate() {
+            out[y].push(config.formatter.format(&entry_configs[x], item));
         }
     }
-    as_rows(&out, n_cols)
+    out
 }
 
 fn max_width(config : &Config, names : &Vec<Entry>) -> usize {

@@ -14,9 +14,12 @@ use colorls::*;
 
 fn main() {
     let matches = App::new("ColorLs")
-        .version("0.1.0")
+        .version("0.1.2")
         .author("scoiatael <czapl.luk+git@gmail.com>")
         .about("List information about the FILEs (the current directory by default).")
+        .arg(Arg::with_name("entry order")
+             .short("x")
+             .help("list entries by lines instead of by columns"))
         .arg(Arg::with_name("long")
              .long("long")
              .short("l")
@@ -50,6 +53,10 @@ fn main() {
         0 => Box::new(ShortFormat),
         1 | _ =>  Box::new(LongFormat),
     };
+    let entry_order = match matches.occurrences_of("entry order") {
+        0 => EntryOrder::Vertical,
+        1 | _ => EntryOrder::Horizontal,
+    };
 
     let file_icons = serde_yaml::from_str(include_str!("default_config/files.yaml")).unwrap();
     let folder_icons = serde_yaml::from_str(include_str!("default_config/folders.yaml")).unwrap();
@@ -61,11 +68,9 @@ fn main() {
     let path = path::PathBuf::from(dir);
     let width = terminal_size().unwrap().0 as usize;
     let action = Action {
-        verbosity: verbosity,
         directory: path,
         config: Config {
             max_width: width,
-            formatter,
             entry: EntryConfig {
                 files: file_icons,
                 folders: folder_icons,
@@ -73,8 +78,11 @@ fn main() {
                 colors,
                 folder_aliases,
                 width,
-            }
+            },
+            entry_order,
+            formatter,
         },
+        verbosity,
         tabulator,
     };
 
