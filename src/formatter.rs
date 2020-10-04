@@ -1,14 +1,14 @@
-use std::collections::HashMap;
-use std::path;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::ffi;
 use std::fmt;
+use std::path;
 
 use unicode_segmentation::UnicodeSegmentation;
 
 use termion::color;
 
-use self::super::colors::{ColorType, RealColor, ColorWrapper};
+use self::super::colors::{ColorType, ColorWrapper, RealColor};
 
 pub type Options = HashMap<String, String>;
 
@@ -28,63 +28,75 @@ pub struct Attr {
     color: ColorType,
 }
 
-fn get_file_attr(conf : &EntryConfig, suffix : &str) -> Attr {
+fn get_file_attr(conf: &EntryConfig, suffix: &str) -> Attr {
     match conf.files.get(suffix) {
-        Some(icon) => Attr { icon: icon.clone(), color: ColorType::RecognizedFile },
-        None => Attr { icon: conf.files.get("file").unwrap().clone(), color: ColorType::UnrecognizedFile }
+        Some(icon) => Attr {
+            icon: icon.clone(),
+            color: ColorType::RecognizedFile,
+        },
+        None => Attr {
+            icon: conf.files.get("file").unwrap().clone(),
+            color: ColorType::UnrecognizedFile,
+        },
     }
 }
 
-fn get_file_attr_alias(conf : &EntryConfig, suffix : &str) -> Attr {
+fn get_file_attr_alias(conf: &EntryConfig, suffix: &str) -> Attr {
     match conf.file_aliases.get(suffix) {
         Some(alias) => get_file_attr(conf, alias),
-        None => get_file_attr(conf, suffix)
+        None => get_file_attr(conf, suffix),
     }
 }
 
-fn get_folder_attr(conf : &EntryConfig, name : &str) -> Attr {
+fn get_folder_attr(conf: &EntryConfig, name: &str) -> Attr {
     match conf.folders.get(name) {
-        Some(icon) => Attr { icon: icon.clone(), color: ColorType::Dir },
-        None => Attr { icon: conf.folders.get("folder").unwrap().clone(), color: ColorType::Dir }
+        Some(icon) => Attr {
+            icon: icon.clone(),
+            color: ColorType::Dir,
+        },
+        None => Attr {
+            icon: conf.folders.get("folder").unwrap().clone(),
+            color: ColorType::Dir,
+        },
     }
 }
 
-fn get_folder_attr_alias(conf : &EntryConfig, name : &str) -> Attr {
+fn get_folder_attr_alias(conf: &EntryConfig, name: &str) -> Attr {
     match conf.folder_aliases.get(name) {
         Some(alias) => get_folder_attr(conf, alias),
-        None => get_folder_attr(conf, name)
+        None => get_folder_attr(conf, name),
     }
 }
 
-fn filename_without_leading_dot(path : &path::Path) -> String {
+fn filename_without_leading_dot(path: &path::Path) -> String {
     let mut file_name = path.file_name().unwrap().to_str().unwrap().to_string();
     file_name.remove(0);
     file_name
 }
 
-pub fn get_attr(config : &EntryConfig, path : &path::Path) -> Attr {
+pub fn get_attr(config: &EntryConfig, path: &path::Path) -> Attr {
     if path.is_dir() {
         let file_name = path.file_name().unwrap().to_str().unwrap();
-        return get_folder_attr_alias(config, file_name)
+        return get_folder_attr_alias(config, file_name);
     } else {
         let filename_without_leading_dot = filename_without_leading_dot(path);
         let default = ffi::OsStr::new(&filename_without_leading_dot);
         let extension = path.extension().unwrap_or(default).to_str().unwrap();
-        return get_file_attr_alias(config, extension)
+        return get_file_attr_alias(config, extension);
     }
 }
 
-fn color_for(config : &EntryConfig, color : &ColorType) -> ColorWrapper {
-    let boxed : Box<color::Color> = match config.colors.get(color).unwrap_or(&RealColor::Grey) {
+fn color_for(config: &EntryConfig, color: &ColorType) -> ColorWrapper {
+    let boxed: Box<color::Color> = match config.colors.get(color).unwrap_or(&RealColor::Grey) {
         &RealColor::Yellow => Box::new(color::Yellow),
         &RealColor::Green => Box::new(color::Green),
         &RealColor::Blue => Box::new(color::Blue),
         &RealColor::Red => Box::new(color::Red),
         &RealColor::Cyan => Box::new(color::Cyan),
         &RealColor::Magenta => Box::new(color::Magenta),
-        &RealColor::Grey => Box::new(color::AnsiValue::rgb(2,2,2)),
-        &RealColor::White => Box::new(color::AnsiValue::rgb(0,0,0)),
-        &RealColor::Black => Box::new(color::AnsiValue::rgb(5,5,5)),
+        &RealColor::Grey => Box::new(color::AnsiValue::rgb(2, 2, 2)),
+        &RealColor::White => Box::new(color::AnsiValue::rgb(0, 0, 0)),
+        &RealColor::Black => Box::new(color::AnsiValue::rgb(5, 5, 5)),
     };
     ColorWrapper(boxed)
 }
@@ -121,19 +133,20 @@ pub trait Formatter: fmt::Debug {
 #[derive(Debug)]
 pub struct LongFormat;
 impl Formatter for LongFormat {
-    fn format(&self, config :  &EntryConfig, entry : &Entry) -> String {
+    fn format(&self, config: &EntryConfig, entry: &Entry) -> String {
         let name = entry.path.display();
         let width = config.width - 2;
-        format!("{icon} {color}{name:<width$}{reset}",
-                name = name,
-                icon = entry.attr.icon,
-                color = color::Fg(color_for(config, &entry.attr.color)),
-                reset = color::Fg(color::Reset),
-                width = width,
+        format!(
+            "{icon} {color}{name:<width$}{reset}",
+            name = name,
+            icon = entry.attr.icon,
+            color = color::Fg(color_for(config, &entry.attr.color)),
+            reset = color::Fg(color::Reset),
+            width = width,
         )
     }
 
-    fn predict(&self, entry : &Entry) -> usize {
+    fn predict(&self, entry: &Entry) -> usize {
         strlen(&format!("{}", entry.path.display())) + 4
     }
 }
@@ -141,30 +154,31 @@ impl Formatter for LongFormat {
 #[derive(Debug)]
 pub struct ShortFormat;
 
-fn short_name(l : &Entry) -> String {
+fn short_name(l: &Entry) -> String {
     l.path.file_name().unwrap().to_str().unwrap().to_string()
 }
 
 impl Formatter for ShortFormat {
-    fn format(&self, config : &EntryConfig, entry : &Entry) -> String {
+    fn format(&self, config: &EntryConfig, entry: &Entry) -> String {
         let name = short_name(entry);
         let width = config.width - 2;
-        format!("{icon}{color}{name:<width$}{reset}",
-                name = name,
-                icon = entry.attr.icon,
-                color = color::Fg(color_for(config, &entry.attr.color)),
-                reset = color::Fg(color::Reset),
-                width = width,
+        format!(
+            "{icon} {color}{name:<width$}{reset}",
+            name = name,
+            icon = entry.attr.icon,
+            color = color::Fg(color_for(config, &entry.attr.color)),
+            reset = color::Fg(color::Reset),
+            width = width,
         )
     }
 
-    fn predict(&self, entry : &Entry) -> usize {
+    fn predict(&self, entry: &Entry) -> usize {
         strlen(&short_name(entry)) + 3
     }
 }
 
 // NOTE: Colors DO count to length. Sadly.
-fn strlen(s : &String) -> usize {
+fn strlen(s: &String) -> usize {
     s.graphemes(true).count() as usize
 }
 
@@ -193,6 +207,13 @@ mod strlen_tests {
 
     #[test]
     fn for_string_with_color() {
-        assert_eq!(20, strlen(&format!("{color}.local{reset}", color = color::Fg(color::Red), reset = color::Fg(color::Reset))))
+        assert_eq!(
+            20,
+            strlen(&format!(
+                "{color}.local{reset}",
+                color = color::Fg(color::Red),
+                reset = color::Fg(color::Reset)
+            ))
+        )
     }
 }
