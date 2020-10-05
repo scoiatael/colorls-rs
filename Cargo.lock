@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "colorls"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap 2.26.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-iter 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
